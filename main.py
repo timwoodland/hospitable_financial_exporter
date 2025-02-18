@@ -4,32 +4,86 @@ from decouple import config
 from pathlib import Path
 import os
 import logging
+from datetime import datetime
 
 
 # Inputs set from .env
-PAT = config("PAT")
-PROPERTY_NAME = config("PROPERTY_NAME")
-START_DATE = config("START_DATE")
-END_DATE = config("END_DATE")
-
-# Token derived from PAT
-TOKEN = "Bearer " + PAT
+PAT = config("PAT", default="", cast=str)
+TOKEN = "Bearer " + config("PAT", default="", cast=str)
+PROPERTY_NAME = config("PROPERTY_NAME", default="", cast= str, )
+START_DATE = config("START_DATE", default="", cast=str)
+END_DATE = config("END_DATE", default="", cast=str)
+DEBUG = config("DEBUG", default=False, cast=bool)
 
 # set basic logging config. Add level=logging.DEBUG for debugging
 os.makedirs("./logs", exist_ok=True)
 
+if DEBUG == True:
+    log_level = logging.DEBUG
+else:
+    log_level = logging.INFO
+
 logging.basicConfig(
-    #level=logging.DEBUG, 
+    level=log_level,
     format="{asctime} - {levelname} - {message}", 
     style="{", datefmt="%Y-%m-%d %H:%M",
     handlers=[
         logging.FileHandler(filename="./logs/log.txt", mode="a", encoding="utf-8"),
         logging.StreamHandler()
     ]
-)
+    )
 
-#TODO add function to check the inputs from the .env file
+def validate_inputs(pat, property_name, start_date, end_date, debug):
+    try:
+        errors = 0
 
+        if (not os.path.isfile("./.env")):
+            logging.error("The '.env' file is missing so one has been created. Please populate the variables within the '.env' file that are required for this script.")
+            errors =+ 1
+            # as the .env does not exist, create one as a template
+            with open(".env", "w+") as f:
+                f.write("PAT = 'xxx'\nPROPERTY_NAME = 'xxx'\nSTART_DATE = 'yyyy-mm-dd'\nEND_DATE = 'yyyy-mm-dd'\n\n# DEBUG = 'False'\n# Set to 'True' if more debugging detail in the 'log.txt' file is required.")
+
+        if len(pat) == 0:
+            logging.error("The PAT variable has a lenght of zero. Please check that a valid PAT variable has been supplied in the '.env' file.")
+            errors =+ 1
+        
+        if len(property_name) == 0:
+            logging.error("The PROPERTY_NAME variable has a lenght of zero. Please check that a valid PROPERTY_NAME variable has been supplied in the '.env' file.")
+            errors =+ 1
+
+        if type(debug) is not bool:
+            logging.error(f"The DEBUG variable of `{debug}` is invalid. Please ensure that the DEBUG variable in the '.env' file is set to 'True' or 'False', or is removed altogether.")
+            errors =+ 1
+
+        # check date format
+        format = "%Y-%m-%d"
+
+        start_ok = True
+        end_ok = True
+
+        try:
+            start_ok = bool(datetime.strptime(start_date, format))
+        except:
+            start_ok = False
+
+        try:
+            end_ok = bool(datetime.strptime(end_date, format))
+        except:
+            end_ok = False
+
+        if (not start_ok):
+            logging.error(f"The START_DATE variable of `{start_date}` is invalid. Please ensure that the START_DATE variable is correctly set in the '.env' file using the format 'yyyy-mm-dd' and as a string.")
+            errors =+ 1
+
+        if (not end_ok):
+            logging.error(f"The END_DATE variable of `{end_date}` is invalid. Please ensure that the END_DATE variable is correctly set in the '.env' file using the format 'yyyy-mm-dd' and as a string.")
+            errors =+ 1
+
+        return errors
+    
+    except:
+        logging.error("Validating the inputs from the '.env' file failed. Check the 'log.txt' file for more details.", exc_info=True)
 
 def get_property_id(token, property_name):
     try:
@@ -48,12 +102,12 @@ def get_property_id(token, property_name):
             if p['name'] == property_name:
                 property_id = p['id']
         
+        logging.debug("get_property_id() completed successfully.")
+        
         return property_id
     
     except:
-        logging.error("get propertyID from Hospitable failed", exc_info=True)
-        
-        #TODO check that property ID len is > 0
+        logging.error("Getting the propertyID from Hospitable failed. Check the 'PAT' and 'PROPERTY_NAME' variables in the '.env' file.", exc_info=True)
 
 
 def get_reservation_data(token, start_date, end_date, property_id):
@@ -114,10 +168,12 @@ def get_reservation_data(token, start_date, end_date, property_id):
                 
                 reservations_dict[id] = (reservation_data_dict)
     
+        logging.debug("get_reservations_data() completed successfully.")
+
         return reservations_dict
 
     except:
-        logging.error("get propertyID from Hospitable failed", exc_info=True)
+        logging.error("Getting the reservations data from Hospitable failed. Check the 'log.txt' file for more details.", exc_info=True)
 
 
 def create_dataframe(reservations_dict):
@@ -137,6 +193,8 @@ def create_dataframe(reservations_dict):
         # Sort the dataframe by check-in date
         reservations_df.sort_values(by=["check_in"])
 
+        logging.debug("create_dataframe() completed successfully.")
+
         return reservations_df
 
     except:
@@ -145,23 +203,42 @@ def create_dataframe(reservations_dict):
 
 def create_output(reservations_df, start_date, end_date):
     try:
-        # Create the output
         export_name = f"export_{start_date}_to_{end_date}"
+        
         Path("output").mkdir(parents=True, exist_ok=True)
+        
         reservations_df.to_csv(f"output/{export_name}.csv",index=False)
 
+        logging.debug("create_output() completed successfully.")
+        logging.info(f"'{export_name}.csv' successfully created in the output directory.")
+
+        return export_name
+    
     except:
-        logging.error("export of csv failed", exc_info=True)
+        logging.error("export of csv file failed. Check the 'log.txt' file for more details", exc_info=True)
 
 def main():
     try:
-        property_id = get_property_id(TOKEN, PROPERTY_NAME, START_DATE, END_DATE)
+        logging.debug("START: main() has started...")
+
+        error_count = validate_inputs(PAT, PROPERTY_NAME, START_DATE, END_DATE, DEBUG)
+
+        if error_count > 0:
+            logging.error(f"END: Inputs from the '.env' file are invalid. {error_count} error(s) identified. Check the 'log.txt' file for more details.", exc_info=True)
+            return
+        
+        property_id = get_property_id(TOKEN, PROPERTY_NAME)
 
         reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, property_id)
 
         reservations_df = create_dataframe(reservations_dict)
 
-        create_output(reservations_df, START_DATE, END_DATE)
+        export_name = create_output(reservations_df, START_DATE, END_DATE)
+
+        logging.debug("END: main() completed successfully.")
 
     except:
-        logging.error("main() failed", exc_info=True)
+        logging.error("END: the main() function has failed. Check the 'log.txt' file for more details", exc_info=True)
+
+if __name__ == "__main__":
+    main()
