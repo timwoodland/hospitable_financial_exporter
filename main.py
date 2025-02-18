@@ -6,7 +6,6 @@ import os
 import logging
 from datetime import datetime
 
-
 # Inputs set from .env
 PAT = config("PAT", default="", cast=str)
 TOKEN = "Bearer " + config("PAT", default="", cast=str)
