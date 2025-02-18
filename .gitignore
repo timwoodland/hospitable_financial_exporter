@@ -6,3 +6,6 @@ conda_env/
 
 # Output folder for the main.py script
 output/
+
+# Log files
+logs/
