@@ -2,104 +2,166 @@ import requests
 import pandas as pd
 from decouple import config
 from pathlib import Path
+import os
+import logging
 
 
 # Inputs set from .env
-pat = config("PAT")
-property_name = config("property_name")
-start_date = config("start_date")
-end_date = config("end_date")
+PAT = config("PAT")
+PROPERTY_NAME = config("PROPERTY_NAME")
+START_DATE = config("START_DATE")
+END_DATE = config("END_DATE")
 
-# Set the name for the csv file to be exported at the end of the process
-export_name = f"export_{start_date}_to_{end_date}"
+# Token derived from PAT
+TOKEN = "Bearer " + PAT
 
-# Get property ID
-token = "Bearer " + pat
+# set basic logging config. Add level=logging.DEBUG for debugging
+os.makedirs("./logs", exist_ok=True)
 
-url = "https://public.api.hospitable.com/v2/properties"
+logging.basicConfig(
+    #level=logging.DEBUG, 
+    format="{asctime} - {levelname} - {message}", 
+    style="{", datefmt="%Y-%m-%d %H:%M",
+    handlers=[
+        logging.FileHandler(filename="./logs/log.txt", mode="a", encoding="utf-8"),
+        logging.StreamHandler()
+    ]
+)
 
-headers = {
-    "Content-Type": "",
-    "Accept": "application/json",
-    "Authorization": token
-}
-response = requests.get(url, headers=headers)
+#TODO add function to check the inputs from the .env file
 
-properties_list_json = response.json()
 
-for p in properties_list_json['data']:
-    if p['name'] == property_name:
-        property_id = p['id']
+def get_property_id(token, property_name):
+    try:
+        url = "https://public.api.hospitable.com/v2/properties"
 
-# Get reservations data with financials using the property ID
-url = "https://public.api.hospitable.com/v2/reservations"
+        headers = {
+            "Content-Type": "",
+            "Accept": "application/json",
+            "Authorization": token
+        }
+        response = requests.get(url, headers=headers)
 
-querystring = {"per_page":"100","properties[]":property_id,"start_date":start_date,"end_date":end_date,"include":"financials"}
+        properties_list_json = response.json()
 
-headers = {
-    "Content-Type": "",
-    "Accept": "application/json",
-    "Authorization": token
-}
-
-response = requests.get(url, headers=headers, params=querystring)
-
-reservations_json = response.json()
-
-# Create a dictionary of reservations dictionaries with the data points of interest
-reservations_dict = {}
-
-for r in reservations_json['data']:
-    status = r["reservation_status"]["current"]["category"]
-    if status == "accepted":
-        id = r["code"]
-        platform = r["platform"]
-        booked_date = r["booking_date"]
-        check_in = r["check_in"]
-        check_out = r["check_out"]
-        nights = r["nights"]
-        accom = r["financials"]["host"]["accommodation"]["amount"]
-        revenue = r["financials"]["host"]["revenue"]["amount"]
-
-        guest_fees = 0
-        for g in r["financials"]["host"]["guest_fees"]:
-            guest_fees += g["amount"]
-
-        host_fees = 0
-        for h in r["financials"]["host"]["host_fees"]:
-            host_fees += h["amount"]
-
-        discounts = 0
-        for d in r["financials"]["host"]["discounts"]:
-            discounts += d["amount"]
-
-        adjustments = 0
-        for a in r["financials"]["host"]["adjustments"]:
-            adjustments += a["amount"]
-
-        taxes = 0
-        for t in r["financials"]["host"]["taxes"]:
-            taxes += t["amount"]
+        for p in properties_list_json['data']:
+            if p['name'] == property_name:
+                property_id = p['id']
         
-        reservation_data_dict = {"id":id, "platform":platform, "booked_date":booked_date, "check_in":check_in, "check_out":check_out, "nights":nights, "accom":accom,"guest_fees":guest_fees ,"discounts":discounts,"adjustments":adjustments, "taxes":taxes, "host_fees":host_fees, "revenue":revenue,}
+        return property_id
+    
+    except:
+        logging.error("get propertyID from Hospitable failed", exc_info=True)
         
-        reservations_dict[id] = (reservation_data_dict)
+        #TODO check that property ID len is > 0
 
-# Create a pandas dataframe from the reservations dictionary
-reservations_df = pd.DataFrame.from_dict(reservations_dict, orient="index")
 
-# Convert the amounts into dollars as they are currently stored as cents
-reservations_df[["accom","discounts","host_fees","revenue","guest_fees","taxes","adjustments"]] = reservations_df[["accom","discounts","host_fees","revenue","guest_fees","taxes","adjustments"]].div(100)
+def get_reservation_data(token, start_date, end_date, property_id):
+    try:
+        # Get reservations data with financials using the property ID
+        url = "https://public.api.hospitable.com/v2/reservations"
 
-# Format the date columns
-date_cols = ['booked_date', 'check_in','check_out']
-for d in date_cols:
-    reservations_df[d] = reservations_df[d].str.slice(stop=10)
-    reservations_df[d] = pd.to_datetime(reservations_df[d], format="%Y-%m-%d")
+        querystring = {"per_page":"100","properties[]":property_id,"start_date":start_date,"end_date":end_date,"include":"financials"}
 
-# Sort the dataframe by check-in date
-reservations_df.sort_values(by=["check_in"])
+        headers = {
+            "Content-Type": "",
+            "Accept": "application/json",
+            "Authorization": token
+        }
 
-# Create the output
-Path("output").mkdir(parents=True, exist_ok=True)
-reservations_df.to_csv(f"output/{export_name}.csv",index=False)
+        response = requests.get(url, headers=headers, params=querystring)
+
+        reservations_json = response.json()
+
+        #TODO if DEBUG is  True, output this JSON to a file for review
+
+        # Create a dictionary of reservations dictionaries with the data points of interest
+        reservations_dict = {}
+
+        for r in reservations_json['data']:
+            status = r["reservation_status"]["current"]["category"]
+            if status == "accepted":
+                id = r["code"]
+                platform = r["platform"]
+                booked_date = r["booking_date"]
+                check_in = r["check_in"]
+                check_out = r["check_out"]
+                nights = r["nights"]
+                accom = r["financials"]["host"]["accommodation"]["amount"]
+                revenue = r["financials"]["host"]["revenue"]["amount"]
+
+                guest_fees = 0
+                for g in r["financials"]["host"]["guest_fees"]:
+                    guest_fees += g["amount"]
+
+                host_fees = 0
+                for h in r["financials"]["host"]["host_fees"]:
+                    host_fees += h["amount"]
+
+                discounts = 0
+                for d in r["financials"]["host"]["discounts"]:
+                    discounts += d["amount"]
+
+                adjustments = 0
+                for a in r["financials"]["host"]["adjustments"]:
+                    adjustments += a["amount"]
+
+                taxes = 0
+                for t in r["financials"]["host"]["taxes"]:
+                    taxes += t["amount"]
+                
+                reservation_data_dict = {"id":id, "platform":platform, "booked_date":booked_date, "check_in":check_in, "check_out":check_out, "nights":nights, "accom":accom,"guest_fees":guest_fees ,"discounts":discounts,"adjustments":adjustments, "taxes":taxes, "host_fees":host_fees, "revenue":revenue,}
+                
+                reservations_dict[id] = (reservation_data_dict)
+    
+        return reservations_dict
+
+    except:
+        logging.error("get propertyID from Hospitable failed", exc_info=True)
+
+
+def create_dataframe(reservations_dict):
+    try:
+        # Create a pandas dataframe from the reservations dictionary
+        reservations_df = pd.DataFrame.from_dict(reservations_dict, orient="index")
+
+        # Convert the amounts into dollars as they are currently stored as cents
+        reservations_df[["accom","discounts","host_fees","revenue","guest_fees","taxes","adjustments"]] = reservations_df[["accom","discounts","host_fees","revenue","guest_fees","taxes","adjustments"]].div(100)
+
+        # Format the date columns
+        date_cols = ['booked_date', 'check_in','check_out']
+        for d in date_cols:
+            reservations_df[d] = reservations_df[d].str.slice(stop=10)
+            reservations_df[d] = pd.to_datetime(reservations_df[d], format="%Y-%m-%d")
+
+        # Sort the dataframe by check-in date
+        reservations_df.sort_values(by=["check_in"])
+
+        return reservations_df
+
+    except:
+        logging.error("creation of Pandas dataframe failed", exc_info=True)
+
+
+def create_output(reservations_df, start_date, end_date):
+    try:
+        # Create the output
+        export_name = f"export_{start_date}_to_{end_date}"
+        Path("output").mkdir(parents=True, exist_ok=True)
+        reservations_df.to_csv(f"output/{export_name}.csv",index=False)
+
+    except:
+        logging.error("export of csv failed", exc_info=True)
+
+def main():
+    try:
+        property_id = get_property_id(TOKEN, PROPERTY_NAME, START_DATE, END_DATE)
+
+        reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, property_id)
+
+        reservations_df = create_dataframe(reservations_dict)
+
+        create_output(reservations_df, START_DATE, END_DATE)
+
+    except:
+        logging.error("main() failed", exc_info=True)
