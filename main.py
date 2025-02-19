@@ -9,7 +9,7 @@ from datetime import datetime
 # Inputs set from .env
 PAT = config("PAT", default="", cast=str)
 TOKEN = "Bearer " + config("PAT", default="", cast=str)
-PROPERTY_NAME = config("PROPERTY_NAME", default="", cast= str, )
+UUID = config("UUID", default="", cast= str)
 START_DATE = config("START_DATE", default="", cast=str)
 END_DATE = config("END_DATE", default="", cast=str)
 DEBUG = config("DEBUG", default=False, cast=bool)
@@ -32,7 +32,7 @@ logging.basicConfig(
     ]
     )
 
-def validate_inputs(pat, property_name, start_date, end_date, debug):
+def validate_inputs(pat, uuid, start_date, end_date, debug):
     try:
         errors = 0
 
@@ -41,14 +41,14 @@ def validate_inputs(pat, property_name, start_date, end_date, debug):
             errors =+ 1
             # as the .env does not exist, create one as a template
             with open(".env", "w+") as f:
-                f.write("PAT = 'xxx'\nPROPERTY_NAME = 'xxx'\nSTART_DATE = 'yyyy-mm-dd'\nEND_DATE = 'yyyy-mm-dd'\n\n# DEBUG = 'False'\n# Set to 'True' if more debugging detail in the 'log.txt' file is required.")
+                f.write("PAT = 'abc123-YourPAT'\nUUID = 'xyz789-YourUUID'\nSTART_DATE = 'yyyy-mm-dd'\nEND_DATE = 'yyyy-mm-dd'\n\n# DEBUG = 'False'\n# Set to 'True' if more debugging detail in the 'log.txt' file is required.")
 
         if len(pat) == 0:
             logging.error("The PAT variable has a lenght of zero. Please check that a valid PAT variable has been supplied in the '.env' file.")
             errors =+ 1
-        
-        if len(property_name) == 0:
-            logging.error("The PROPERTY_NAME variable has a lenght of zero. Please check that a valid PROPERTY_NAME variable has been supplied in the '.env' file.")
+
+        if len(uuid) == 0:
+            logging.error("The UUID variable has a lenght of zero. Please check that a valid UUID variable has been supplied in the '.env' file.")
             errors =+ 1
 
         if type(debug) is not bool:
@@ -83,30 +83,6 @@ def validate_inputs(pat, property_name, start_date, end_date, debug):
     
     except:
         logging.error("Validating the inputs from the '.env' file failed. Check the 'log.txt' file for more details.", exc_info=True)
-
-def get_property_id(token, property_name):
-    try:
-        url = "https://public.api.hospitable.com/v2/properties"
-
-        headers = {
-            "Content-Type": "",
-            "Accept": "application/json",
-            "Authorization": token
-        }
-        response = requests.get(url, headers=headers)
-
-        properties_list_json = response.json()
-
-        for p in properties_list_json['data']:
-            if p['name'] == property_name:
-                property_id = p['id']
-        
-        logging.debug("get_property_id() completed successfully.")
-        
-        return property_id
-    
-    except:
-        logging.error("Getting the propertyID from Hospitable failed. Check the 'PAT' and 'PROPERTY_NAME' variables in the '.env' file.", exc_info=True)
 
 
 def get_reservation_data(token, start_date, end_date, property_id):
@@ -172,7 +148,7 @@ def get_reservation_data(token, start_date, end_date, property_id):
         return reservations_dict
 
     except:
-        logging.error("Getting the reservations data from Hospitable failed. Check the 'log.txt' file for more details.", exc_info=True)
+        logging.error("Getting the reservations data from Hospitable failed. Check the all variables in the '.env' file are accurate. Check the 'log.txt' file for more details.", exc_info=True)
 
 
 def create_dataframe(reservations_dict):
@@ -220,15 +196,13 @@ def main():
     try:
         logging.debug("START: main() has started...")
 
-        error_count = validate_inputs(PAT, PROPERTY_NAME, START_DATE, END_DATE, DEBUG)
+        error_count = validate_inputs(PAT, UUID, START_DATE, END_DATE, DEBUG)
 
         if error_count > 0:
             logging.error(f"END: Inputs from the '.env' file are invalid. {error_count} error(s) identified. Check the 'log.txt' file for more details.", exc_info=True)
             return
-        
-        property_id = get_property_id(TOKEN, PROPERTY_NAME)
 
-        reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, property_id)
+        reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, UUID)
 
         reservations_df = create_dataframe(reservations_dict)
 
