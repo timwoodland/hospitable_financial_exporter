@@ -9,3 +9,6 @@ output/
 
 # Log files
 logs/
+
+# Debug folder
+debug/
