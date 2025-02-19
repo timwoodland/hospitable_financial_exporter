@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import logging
 from datetime import datetime
+import json
 
 # Inputs set from .env
 PAT = config("PAT", default="", cast=str)
@@ -85,7 +86,7 @@ def validate_inputs(pat, uuid, start_date, end_date, debug):
         logging.error("Validating the inputs from the '.env' file failed. Check the 'log.txt' file for more details.", exc_info=True)
 
 
-def get_reservation_data(token, start_date, end_date, property_id):
+def get_reservation_data(token, start_date, end_date, property_id, debug):
     try:
         # Get reservations data with financials using the property ID
         url = "https://public.api.hospitable.com/v2/reservations"
@@ -102,7 +103,15 @@ def get_reservation_data(token, start_date, end_date, property_id):
 
         reservations_json = response.json()
 
-        #TODO if DEBUG is  True, output this JSON to a file for review
+        # If debug is True, export raw json response
+        if debug:
+            try:
+                Path("debug").mkdir(parents=True, exist_ok=True)
+                with open(f"./debug/raw_{start_date}_to_{end_date}.json", "w+") as f:
+                    f.write(json.dumps(reservations_json, indent=4))
+                logging.debug(f"'raw_{start_date}_to_{end_date}.json' successfully created in the debug directory. This is the raw data obtained from the Hospitable API")
+            except:
+                logging.error("Unable to export the raw JSON data for debugging. Check the 'log.txt' file for more details.", exc_info=True)
 
         # Create a dictionary of reservations dictionaries with the data points of interest
         reservations_dict = {}
@@ -202,7 +211,7 @@ def main():
             logging.error(f"END: Inputs from the '.env' file are invalid. {error_count} error(s) identified. Check the 'log.txt' file for more details.", exc_info=True)
             return
 
-        reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, UUID)
+        reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, UUID, DEBUG)
 
         reservations_df = create_dataframe(reservations_dict)
 
