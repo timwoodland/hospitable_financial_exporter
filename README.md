@@ -16,14 +16,14 @@ The `.env` file is where you specify the variables to be used by the script. You
 ### Variables required in the `.env` file
 
 ```
-PAT = "abc123-MYPAT"
+PAT = 'abc123-MYPAT'
 PROPERTY_NAME = 'The Beach House, Dunsborough, Western Australia'
 START_DATE = '2024-07-01'
 END_DATE = '2025-06-30'
 ```
 
 #### Description of each variable
-`PAT` This is your personal access token from Hospitable. Please follow the (instructions)[https://help.hospitable.com/en/articles/8609392-accessing-the-public-api-with-a-personal-access-token] provided by Hospiable for creating a PAT. Note that only Read permissions are required for this script.
+`PAT` This is your personal access token from Hospitable. Please follow the [instructions](https://help.hospitable.com/en/articles/8609392-accessing-the-public-api-with-a-personal-access-token) provided by Hospiable for creating a PAT. Note that only Read permissions are required for this script.
 
 `PROPERTY_NAME` This
 
