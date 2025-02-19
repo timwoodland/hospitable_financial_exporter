@@ -1,5 +1,5 @@
 # Hospitable Financial Exporter
-This is a Python script to export financial data from Hospitable to csv for a given date range.
+This is a Python script to export financial data from Hospitable to a `.csv` file for a given date range.
 
 ## How it works
 The `main.py` file is a python script that runs using a PAT generated from Hospitable to retrieve the financial data for a date range the you specify. It will then output this data into a .csv file for you to use.
@@ -32,9 +32,28 @@ END_DATE = '2025-06-30'
 
 `END_DATE` This is the start of the date range that you wish to use for this script. The date format must be `'yyyy-mm-dd'`.
 
-#### Optional variables
+### Optional variables
 In addition to the four required variables listed above, you may also supply the following optional variables.
 `DEBUG` Set this to either `'True'` or `'False'`. Setting to `'True'` will run the script in debug mode which will result in more details being added to the `log.txt` file.
 
-#### Date Ranges
+### Date Ranges
 This script currenrly only uses the **Check-In date** for the date range, however in the future I will add the option to use the **Reservation date**.
+
+## Output
+The script produces a `.csv` file in a folder called `output`. The `.csv` will be named based on the date range you provided in the `.env` file.
+
+### Output fields
+The fields included in the `.csv` file are:
+1. `id` This is the reservation ID.
+2. `platform` The booking platform (e.g. airbnb).
+3. `booked_date` The date the booking was made.
+4. `check_in` The check-in date for the booking.
+5. `check_out` The check-out date for the booking.
+6. `nights` The number of nights booked.
+7. `accom` The accommodation cost paid to the host.
+8. `guest_fees` The fees paid to the host.
+9. `discounts` The value of any discounts applied (from the perspective of the host).
+10. `adjustments` The value of any adjustments applied (from the perspective of the host).
+11. `taxes` The value of any taxes applied (from the perspective of the host).
+12. `host_fees` The value of any host fees applied (from the perspective of the host).
+13. `revenue` The revenue the host made from the booking. This should be the sum of fields 7 to 12.
