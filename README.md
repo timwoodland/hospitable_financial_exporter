@@ -57,3 +57,10 @@ The fields included in the `.csv` file are:
 11. `taxes` The value of any taxes applied (from the perspective of the host).
 12. `host_fees` The value of any host fees applied (from the perspective of the host).
 13. `revenue` The revenue the host made from the booking. This should be the sum of fields 7 to 12.
+
+## Debugging
+An option variable can be set in the `.env` file to enable debugging.
+```
+DEBUG = 'True'
+```
+If this is set to `True`, more details will be added to the `log.txt` file and the raw JSON data from the Hospitable reservations API query will be exported to a `debug` directory.
