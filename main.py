@@ -192,16 +192,51 @@ def create_reservations_dataframe(reservations_dict):
 def create_gnu_dataframe(reservations_df):
     try:
         # Create a dataframe using the initial reservations dataframe
-        accounting_df = reservations_df
+        accounting_df = reservations_df.copy()
         accounting_df["accom"] = accounting_df["accom"] + accounting_df["discounts"] + accounting_df["taxes"]
         accounting_df["date"] = accounting_df["check_in"]
         accounting_df["description"] = accounting_df[["platform", "id"]].agg(" booking ".join, axis=1)
-        accounting_df["receivable"] = accounting_df["accom"] + accounting_df["guest_fees"] + accounting_df["host_fees"]
-        accounting_df["receivable"] = accounting_df["receivable"] * -1
-        accounting_df = accounting_df[["id", "date", "platform", "description", "accom", "guest_fees", "host_fees", "receivable"]]
+        accounting_df = accounting_df[["id", "date", "platform", "description", "accom", "guest_fees", "host_fees"]]
+
+        # define function to add tax to booking.com host fees
+        def add_tax(row):
+            if row["platform"] == "booking":
+                value = row["host_fees"] * 1.1
+            else:
+                value = row["host_fees"]
+
+            return value
+    
+        
+        # apply function to df to add tax to booking.com host fees
+        accounting_df.loc[:,"host_fees"] = accounting_df.apply(add_tax, axis=1)         
+
+        # define function to add receivable amount
+        def add_receivable(row):
+            if row["platform"] == "booking":
+                value = row["accom"] + row["guest_fees"]
+            else:
+                value = row["accom"] + row["guest_fees"] + row["host_fees"]
+
+            return value * -1
+        
+        # apply function to df to add receivable
+        accounting_df.loc[:,("receivable")] = accounting_df.apply(add_receivable, axis=1)     
+
+        # define function to add payable amount
+        def add_payable(row):
+            if row["platform"] == "booking":
+                value = row["host_fees"]
+            else:
+                value = 0.0
+
+            return value * -1
+        
+        # apply function to df to add receivable
+        accounting_df.loc[:,("payable")] = accounting_df.apply(add_payable, axis=1)         
 
         # use pd.melt() to un-pivot the df, bring it closer to the required gnucash input format
-        accounting_df_melt = pd.melt(accounting_df, id_vars=["id", "date", "platform", "description"], value_vars=["accom", "guest_fees", "host_fees", "receivable"])
+        accounting_df_melt = pd.melt(accounting_df, id_vars=["id", "date", "platform", "description"], value_vars=["accom", "guest_fees", "host_fees", "receivable", "payable"])
         accounting_df_melt = accounting_df_melt.sort_values(by=["date","variable"])
         accounting_df_melt.reset_index(drop=True)
 
@@ -235,6 +270,9 @@ def create_gnu_dataframe(reservations_df):
 
             elif row["variable"] == "receivable":
                 value = "Assets:Accounts Receivable"
+            elif row["variable"] == "payable":
+                value = "Liabilities:Accounts Payable"
+
 
             else:
                 value = "unknown"
