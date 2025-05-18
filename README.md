@@ -1,5 +1,6 @@
 # Hospitable Financial Exporter
 This is a Python script to export financial data from Hospitable to a `.csv` file for a given date range.
+The script can export a generic `reservations_export.csv` as well as an option `gnu_export.csv`, which is specifically formatted to be imported into GnuCash. Note that this `gnu_export.csv` uses my GnuCash account names but these can be easily updated.
 
 ## How it works
 The `main.py` file is a python script that runs using a PAT generated from Hospitable to retrieve the financial data for a date range the you specify. It will then output this data into a .csv file for you to use.
@@ -34,7 +35,7 @@ END_DATE = '2025-06-30'
 
 ### Optional variables
 In addition to the four required variables listed above, you may also supply the following optional variables.
-`GNU` Set this to either `'True'` or `'False'`. Setting to `'True'` will provide a `gnu_export.csv` which can be used to import transactions into GnuCash. This `.csv` is formatted to be imported as *split transactions*
+`GNU` Set this to either `'True'` or `'False'`. Setting to `'True'` will provide a `gnu_export.csv` which can be used to import transactions into GnuCash. This `.csv` is formatted to be imported as *split transactions*. Note that the `gnu_export.csv`  uses my GnuCash account names. You may need to update these for your use case.
 
 `DEBUG` Set this to either `'True'` or `'False'`. Setting to `'True'` will run the script in debug mode which will result in more details being added to the `log.txt` file.
 
