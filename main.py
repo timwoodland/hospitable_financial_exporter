@@ -233,12 +233,14 @@ def create_gnu_dataframe(reservations_df):
             return value * -1
         
         # apply function to df to add receivable
-        accounting_df.loc[:,("payable")] = accounting_df.apply(add_payable, axis=1)         
+        accounting_df.loc[:,("payable")] = accounting_df.apply(add_payable, axis=1)    
 
         # use pd.melt() to un-pivot the df, bring it closer to the required gnucash input format
         accounting_df_melt = pd.melt(accounting_df, id_vars=["id", "date", "platform", "description"], value_vars=["accom", "guest_fees", "host_fees", "receivable", "payable"])
         accounting_df_melt = accounting_df_melt.sort_values(by=["date","variable"])
         accounting_df_melt.reset_index(drop=True)
+
+        accounting_df_melt = accounting_df_melt.drop(accounting_df_melt[accounting_df_melt["value"]==0].index)
 
         # define function to use to create account names in the df
         def add_account(row):
