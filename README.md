@@ -34,10 +34,12 @@ END_DATE = '2025-06-30'
 
 ### Optional variables
 In addition to the four required variables listed above, you may also supply the following optional variables.
+`GNU` Set this to either `'True'` or `'False'`. Setting to `'True'` will provide a `gnu_export.csv` which can be used to import transactions into GnuCash. This `.csv` is formatted to be imported as *split transactions*
+
 `DEBUG` Set this to either `'True'` or `'False'`. Setting to `'True'` will run the script in debug mode which will result in more details being added to the `log.txt` file.
 
 ### Date Ranges
-This script currenrly only uses the **Check-In date** for the date range, however in the future I will add the option to use the **Reservation date**.
+This script currenrly only uses the **Check-In date** for the date range, however in the future I will add the option to use the other dates such as the Reservation Date.
 
 ## Output
 The script produces a `.csv` file in a folder called `output`. The `.csv` will be named based on the date range you provided in the `.env` file.

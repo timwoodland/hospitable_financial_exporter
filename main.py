@@ -14,6 +14,7 @@ UUID = config("UUID", default="", cast= str)
 START_DATE = config("START_DATE", default="", cast=str)
 END_DATE = config("END_DATE", default="", cast=str)
 DEBUG = config("DEBUG", default=False, cast=bool)
+GNU = config("GNU", default=False, cast=bool)
 
 # set basic logging config. Add level=logging.DEBUG for debugging
 os.makedirs("./logs", exist_ok=True)
@@ -33,7 +34,7 @@ logging.basicConfig(
     ]
     )
 
-def validate_inputs(pat, uuid, start_date, end_date, debug):
+def validate_inputs(pat, uuid, start_date, end_date, debug, gnu):
     try:
         errors = 0
 
@@ -54,6 +55,10 @@ def validate_inputs(pat, uuid, start_date, end_date, debug):
 
         if type(debug) is not bool:
             logging.error(f"The DEBUG variable of `{debug}` is invalid. Please ensure that the DEBUG variable in the '.env' file is set to 'True' or 'False', or is removed altogether.")
+            errors =+ 1
+
+        if type(gnu) is not bool:
+            logging.error(f"The GNU variable of `{gnu}` is invalid. Please ensure that the GNU variable in the '.env' file is set to 'True' or 'False', or is removed altogether.")
             errors =+ 1
 
         # check date format
@@ -91,7 +96,7 @@ def get_reservation_data(token, start_date, end_date, property_id, debug):
         # Get reservations data with financials using the property ID
         url = "https://public.api.hospitable.com/v2/reservations"
 
-        querystring = {"per_page":"100","properties[]":property_id,"start_date":start_date,"end_date":end_date,"include":"financials"}
+        querystring = {"per_page":"100","properties[]":property_id,"date_query":"checkin","start_date":start_date,"end_date":end_date,"include":"financials"}
 
         headers = {
             "Content-Type": "",
@@ -160,7 +165,7 @@ def get_reservation_data(token, start_date, end_date, property_id, debug):
         logging.error("Getting the reservations data from Hospitable failed. Check the all variables in the '.env' file are accurate. Check the 'log.txt' file for more details.", exc_info=True)
 
 
-def create_dataframe(reservations_dict):
+def create_reservations_dataframe(reservations_dict):
     try:
         # Create a pandas dataframe from the reservations dictionary
         reservations_df = pd.DataFrame.from_dict(reservations_dict, orient="index")
@@ -175,37 +180,114 @@ def create_dataframe(reservations_dict):
             reservations_df[d] = pd.to_datetime(reservations_df[d], format="%Y-%m-%d")
 
         # Sort the dataframe by check-in date
-        reservations_df.sort_values(by=["check_in"])
+        reservations_df = reservations_df.sort_values(by=["check_in"])
 
-        logging.debug("create_dataframe() completed successfully.")
+        logging.debug("create_reservations_dataframe() completed successfully.")
 
         return reservations_df
 
     except:
-        logging.error("creation of Pandas dataframe failed", exc_info=True)
+        logging.error("creation of Pandas reservation data dataframe failed", exc_info=True)
 
-
-def create_output(reservations_df, start_date, end_date):
+def create_gnu_dataframe(reservations_df):
     try:
-        export_name = f"export_{start_date}_to_{end_date}"
+        # Create a dataframe using the initial reservations dataframe
+        accounting_df = reservations_df
+        accounting_df["accom"] = accounting_df["accom"] + accounting_df["discounts"] + accounting_df["taxes"]
+        accounting_df["date"] = accounting_df["check_in"]
+        accounting_df["description"] = accounting_df[["platform", "id"]].agg(" booking ".join, axis=1)
+        accounting_df["receivable"] = accounting_df["accom"] + accounting_df["guest_fees"] + accounting_df["host_fees"]
+        accounting_df["receivable"] = accounting_df["receivable"] * -1
+        accounting_df = accounting_df[["id", "date", "platform", "description", "accom", "guest_fees", "host_fees", "receivable"]]
+
+        # use pd.melt() to un-pivot the df, bring it closer to the required gnucash input format
+        accounting_df_melt = pd.melt(accounting_df, id_vars=["id", "date", "platform", "description"], value_vars=["accom", "guest_fees", "host_fees", "receivable"])
+        accounting_df_melt = accounting_df_melt.sort_values(by=["date","variable"])
+        accounting_df_melt.reset_index(drop=True)
+
+        # define function to use to create account names in the df
+        def add_account(row):
+            if row["platform"] == "airbnb" and row["variable"] == "accom":
+                value = "Income:Booking Income:AirBnb:Accommodation"
+            elif row["platform"] == "airbnb" and row["variable"] == "guest_fees":
+                value = "Income:Booking Income:AirBnb:Guest Fees"
+            elif row["platform"] == "airbnb" and row["variable"] == "host_fees":
+                value = "Expenses:Platform Fees and Subscriptions:Booking Platform Fees:AirBnb Fees"
+
+            elif row["platform"] == "booking" and row["variable"] == "accom":
+                value = "Income:Booking Income:Booking.com:Accommodation"
+            elif row["platform"] == "booking" and row["variable"] == "guest_fees":
+                value = "Income:Booking Income:Booking.com:Guest Fees"
+            elif row["platform"] == "booking" and row["variable"] == "host_fees":
+                value = "Expenses:Platform Fees and Subscriptions:Booking Platform Fees:Booking.com Fees"
+
+            elif row["platform"] == "homeaway" and row["variable"] == "accom":
+                value = "Income:Booking Income:Vrbo:Accommodation"
+            elif row["platform"] == "homeaway" and row["variable"] == "guest_fees":
+                value = "Income:Booking Income:Vrbo:Guest Fees"
+            elif row["platform"] == "homeaway" and row["variable"] == "host_fees":
+                value = "Expenses:Platform Fees and Subscriptions:Booking Platform Fees:Vrbo Fees"
+
+            elif row["platform"] == "manual" and row["variable"] == "accom":
+                value = "Income:Booking Income:Direct Booking:Accommodation"
+            elif row["platform"] == "manual" and row["variable"] == "guest_fees":
+                value = "Income:Booking Income:Direct Booking:Guest Fees"
+
+            elif row["variable"] == "receivable":
+                value = "Assets:Accounts Receivable"
+
+            else:
+                value = "unknown"
+        
+            return value
+        
+        # apply function to df to add account names
+        accounting_df_melt["account"] = accounting_df_melt.apply(add_account, axis=1)
+
+        logging.debug("create_gnu_dataframe() completed successfully.")
+
+        return accounting_df_melt
+
+    except:
+        logging.error("creation of Pandas gnuCash dataframe failed", exc_info=True)
+
+def create_reservations_output(reservations_df, start_date, end_date):
+    try:
+        export_name = f"reservations_export_{start_date}_to_{end_date}"
         
         Path("output").mkdir(parents=True, exist_ok=True)
         
         reservations_df.to_csv(f"output/{export_name}.csv",index=False)
 
-        logging.debug("create_output() completed successfully.")
+        logging.debug("create_reservations_output() completed successfully.")
         logging.info(f"'{export_name}.csv' successfully created in the output directory.")
 
         return export_name
     
     except:
-        logging.error("export of csv file failed. Check the 'log.txt' file for more details", exc_info=True)
+        logging.error("export of reservations csv file failed. Check the 'log.txt' file for more details", exc_info=True)
+
+def create_gnu_output(gnu_df, start_date, end_date):
+    try:
+        export_name = f"gnu_export_{start_date}_to_{end_date}"
+        
+        Path("output").mkdir(parents=True, exist_ok=True)
+        
+        gnu_df.to_csv(f"output/{export_name}.csv",index=False)
+
+        logging.debug("create_gnu_output() completed successfully.")
+        logging.info(f"'{export_name}.csv' successfully created in the output directory.")
+
+        return export_name
+    
+    except:
+        logging.error("export of gnuCash csv file failed. Check the 'log.txt' file for more details", exc_info=True)
 
 def main():
     try:
         logging.debug("START: main() has started...")
 
-        error_count = validate_inputs(PAT, UUID, START_DATE, END_DATE, DEBUG)
+        error_count = validate_inputs(PAT, UUID, START_DATE, END_DATE, DEBUG, GNU)
 
         if error_count > 0:
             logging.error(f"END: Inputs from the '.env' file are invalid. {error_count} error(s) identified. Check the 'log.txt' file for more details.", exc_info=True)
@@ -213,9 +295,14 @@ def main():
 
         reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, UUID, DEBUG)
 
-        reservations_df = create_dataframe(reservations_dict)
+        reservations_df = create_reservations_dataframe(reservations_dict)
 
-        export_name = create_output(reservations_df, START_DATE, END_DATE)
+        gnu_df = create_gnu_dataframe(reservations_df)
+
+        create_reservations_output(reservations_df, START_DATE, END_DATE)
+
+        if GNU:
+            create_gnu_output(gnu_df, START_DATE, END_DATE)
 
         logging.debug("END: main() completed successfully.")
 
