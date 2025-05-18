@@ -12,3 +12,6 @@ logs/
 
 # Debug folder
 debug/
+
+# Testing folder
+testing/
