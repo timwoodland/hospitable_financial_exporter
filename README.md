@@ -62,6 +62,40 @@ The fields included in the `.csv` file are:
 12. `host_fees` The value of any host fees applied (from the perspective of the host).
 13. `revenue` The revenue the host made from the booking. This should be the sum of fields 7 to 12.
 
+## Importing into GnuCash
+
+Once you have generated the `gnu_export.csv`, you can import it into GnuCash as split transactions. In GnuCash, navigate to **Import > Import Transactions from CSV** and follow the prompts to select the exported file. On the **Import Preview** screen, apply the configuration below.
+
+![GnuCash import configuration](assets/hospitable_import_config.png)
+
+### File Format
+- **Character-separated** (not Fixed-Width)
+- Delimiter: **Comma (,)**
+- **Multi-split** enabled
+
+### Miscellaneous
+- Encoding: **Unicode (UTF-8)**
+- Date Format: **y-m-d**
+- Currency Format: **Locale**
+- Leading Lines to Skip: **1**
+- Trailing Lines to Skip: **0**
+- Skip alternate lines: **unchecked**
+
+### Column mapping
+Map the CSV columns to the following GnuCash roles:
+
+| CSV column   | GnuCash role      |
+|--------------|-------------------|
+| `id`         | None              |
+| `date`       | Date              |
+| `platform`   | None              |
+| `description`| Description       |
+| `variable`   | None              |
+| `value`      | Amount (Negated)  |
+| `account`    | Account           |
+
+> **Tip:** You can save this configuration using the **Load and Save Settings** field at the top of the Import Preview screen so you don't need to re-enter it each time. The screenshot above uses a saved configuration named "Hospitable".
+
 ## Debugging
 An option variable can be set in the `.env` file to enable debugging.
 ```
@@ -79,4 +113,4 @@ All logic lives in `main.py`. The script runs through the following steps:
 4. **`create_gnu_dataframe()`** — maps each reservation to GnuCash account splits; includes platform-specific logic for Airbnb, Booking.com, VRBO, and Direct bookings (including differing tax treatment per platform)
 5. Output functions write CSVs to `output/`; logs go to `logs/log.txt`
 
-Note: the GnuCash account names in `create_gnu_dataframe()` are specific to the author's chart of accounts and will need updating for other users.
+Note: the GnuCash account names in `create_gnu_dataframe()` are specific to my chart of accounts and will need updating.
