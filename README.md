@@ -68,3 +68,15 @@ An option variable can be set in the `.env` file to enable debugging.
 DEBUG = 'True'
 ```
 If this is set to `True`, more details will be added to the `log.txt` file and the raw JSON data from the Hospitable reservations API query will be exported to a `debug` directory.
+
+## Architecture
+
+All logic lives in `main.py`. The script runs through the following steps:
+
+1. **`validate_inputs()`** — reads `.env` via `python-decouple` and validates all variables
+2. **`get_reservation_data()`** — paginates the Hospitable API (`per_page=100`), filters for `accepted` reservations only, and returns a list of dicts
+3. **`create_reservations_dataframe()`** — converts API response amounts (cents → dollars), normalises dates, and sums multi-item financial fields (`guest_fees`, `host_fees`, `discounts`, `adjustments`, `taxes`)
+4. **`create_gnu_dataframe()`** — maps each reservation to GnuCash account splits; includes platform-specific logic for Airbnb, Booking.com, VRBO, and Direct bookings (including differing tax treatment per platform)
+5. Output functions write CSVs to `output/`; logs go to `logs/log.txt`
+
+Note: the GnuCash account names in `create_gnu_dataframe()` are specific to the author's chart of accounts and will need updating for other users.

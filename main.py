@@ -335,6 +335,10 @@ def main():
 
         reservations_dict = get_reservation_data(TOKEN, START_DATE, END_DATE, UUID, DEBUG)
 
+        if not reservations_dict:
+            logging.info(f"No accepted reservations found between {START_DATE} and {END_DATE}. No files created.")
+            return
+
         reservations_df = create_reservations_dataframe(reservations_dict)
 
         gnu_df = create_gnu_dataframe(reservations_df)

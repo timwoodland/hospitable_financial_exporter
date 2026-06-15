@@ -16,5 +16,11 @@ debug/
 # Testing folder
 testing/
 
+# Claude Code instructions (local only)
+CLAUDE.md
+
+# VS Code workspace settings
+.vscode/
+
 # Files
 .DS_Store
